@@ -17,6 +17,7 @@ A .NET 10 console agent for LeetCode and DSA practice. It uses a local Ollama mo
 - Explain DSA concepts and algorithms.
 - Build learning paths for topics.
 - Persist conversation context across app restarts.
+- Stream model responses in the console as Ollama generates them.
 
 ## Prerequisites
 
@@ -162,5 +163,6 @@ dotnet build LeetCodeAgent.csproj
 
 - The current model is hard-coded in `Program.cs` as `qwen3:8b`.
 - The Ollama client uses `/api/chat`.
+- Responses are streamed from Ollama, so output starts appearing before the full answer is complete.
 - The LeetCode client uses LeetCode's GraphQL endpoint to fetch public problem data by URL slug.
 - If Ollama is not running or the model is missing, the agent will show a connection/model error in the console.

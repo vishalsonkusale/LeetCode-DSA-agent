@@ -32,8 +32,23 @@ public static class ConsoleRenderer
 
     public static void WriteAssistant(string response)
     {
-        WriteSection("Assistant");
+        WriteAssistantHeader();
         Console.WriteLine(StripAssistantPrefix(response));
+    }
+
+    public static void WriteAssistantHeader()
+    {
+        WriteSection("Assistant");
+    }
+
+    public static void WriteAssistantChunk(string chunk)
+    {
+        Console.Write(chunk);
+    }
+
+    public static void FinishAssistantStream()
+    {
+        Console.WriteLine();
     }
 
     public static void WriteInfo(string message)

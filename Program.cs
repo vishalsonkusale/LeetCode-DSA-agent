@@ -1,4 +1,5 @@
 using LeetCodeAgent;
+using System.Text;
 
 var database = new Database();
 var assistant = new DSAAssistant();
@@ -60,6 +61,35 @@ while (true)
     var agentInput = commandResult.AgentInput ?? input;
 
     Console.WriteLine();
-    ConsoleRenderer.WriteAssistant(await agent.RespondAsync(agentInput));
+    ConsoleRenderer.WriteAssistantHeader();
+
+    var streamedResponse = new StringBuilder();
+    try
+    {
+        await foreach (var chunk in agent.StreamResponseAsync(agentInput))
+        {
+            streamedResponse.Append(chunk);
+            ConsoleRenderer.WriteAssistantChunk(chunk);
+        }
+    }
+    catch (HttpRequestException exception)
+    {
+        streamedResponse.Append($"Could not reach Ollama. Make sure Ollama is running at http://localhost:11434 and qwen3:8b is pulled. Details: {exception.Message}");
+        ConsoleRenderer.WriteAssistantChunk(streamedResponse.ToString());
+    }
+    catch (TaskCanceledException)
+    {
+        streamedResponse.Append("The Ollama request timed out.");
+        ConsoleRenderer.WriteAssistantChunk(streamedResponse.ToString());
+    }
+
+    if (streamedResponse.Length == 0)
+    {
+        streamedResponse.Append("I did not receive a response from the local Ollama model.");
+        ConsoleRenderer.WriteAssistantChunk(streamedResponse.ToString());
+    }
+
+    agent.RecordResponse(agentInput, streamedResponse.ToString());
+    ConsoleRenderer.FinishAssistantStream();
     Console.WriteLine();
 }

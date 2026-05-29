@@ -1,3 +1,6 @@
+using System.Runtime.CompilerServices;
+using System.Text;
+
 namespace LeetCodeAgent;
 
 public sealed class LeetCodeDsaAgent
@@ -39,38 +42,58 @@ public sealed class LeetCodeDsaAgent
 
     public async Task<string> RespondAsync(string input, CancellationToken cancellationToken = default)
     {
-        var request = Parse(input);
-        var problem = await problemClient.TryGetProblemAsync(input, cancellationToken);
-        var messages = BuildMessages(request, problem);
+        var response = new StringBuilder();
 
-        string response;
         try
         {
-            response = await chatClient.GetResponseAsync(messages, cancellationToken);
-            if (string.IsNullOrWhiteSpace(response))
+            await foreach (var chunk in StreamResponseAsync(input, cancellationToken))
             {
-                response = "I did not receive a response from the local Ollama model.";
+                response.Append(chunk);
             }
         }
         catch (HttpRequestException exception)
         {
-            response = $"Could not reach Ollama. Make sure Ollama is running at http://localhost:11434 and qwen3:8b is pulled. Details: {exception.Message}";
+            response.Append($"Could not reach Ollama. Make sure Ollama is running at http://localhost:11434 and qwen3:8b is pulled. Details: {exception.Message}");
         }
         catch (TaskCanceledException)
         {
-            response = "The Ollama request timed out.";
+            response.Append("The Ollama request timed out.");
         }
 
-        var formattedResponse = $"Assistant:{Environment.NewLine}{response.Trim()}";
+        if (response.Length == 0)
+        {
+            response.Append("I did not receive a response from the local Ollama model.");
+        }
+
+        RecordResponse(input, response.ToString());
+
+        return FormatResponse(response.ToString());
+    }
+
+    public async IAsyncEnumerable<string> StreamResponseAsync(
+        string input,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var request = Parse(input);
+        var problem = await problemClient.TryGetProblemAsync(input, cancellationToken);
+        var messages = BuildMessages(request, problem);
+
+        await foreach (var chunk in chatClient.StreamResponseAsync(messages, cancellationToken))
+        {
+            yield return chunk;
+        }
+    }
+
+    public void RecordResponse(string input, string response)
+    {
+        var request = Parse(input);
 
         database.Record(new ConversationTurn(
             DateTimeOffset.Now,
             input,
-            formattedResponse,
+            FormatResponse(response),
             request.Intent,
             request.Subject));
-
-        return formattedResponse;
     }
 
     private List<ChatMessage> BuildMessages(AgentRequest request, LeetCodeProblem? problem)
@@ -156,4 +179,7 @@ public sealed class LeetCodeDsaAgent
         response.StartsWith("Assistant:", StringComparison.OrdinalIgnoreCase)
             ? response["Assistant:".Length..].Trim()
             : response;
+
+    private static string FormatResponse(string response) =>
+        $"Assistant:{Environment.NewLine}{response.Trim()}";
 }
